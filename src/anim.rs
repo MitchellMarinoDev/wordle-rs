@@ -1,10 +1,10 @@
 use std::f32::consts::PI;
 use std::time::Duration;
 use bevy::prelude::*;
-use crate::{App, get_tile_pos, Tile, TileAssets};
+use crate::{App, get_tile_pos, Tile, TileAssets, TileMap};
 
 const JUMP_ANIM_TIME: Duration = Duration::from_millis(100);
-const FLIP_ANIM_TIME: Duration = Duration::from_millis(400);
+const FLIP_ANIM_TIME: Duration = Duration::from_millis(300);
 const SHAKE_ANIM_TIME: Duration = Duration::from_millis(500);
 
 pub struct AnimPlugin;
@@ -16,10 +16,6 @@ impl Plugin for AnimPlugin {
 			.add_system(jump_anim)
 			.add_system(flip_anim)
 		;
-	}
-	
-	fn name(&self) -> &str {
-		"Animation Plugin"
 	}
 }
 
@@ -38,7 +34,7 @@ fn shake_anim(
 		
 		if anim.tick(time.delta()) { // Finished
 			transform.translation = pos;
-			commands.entity(entity).remove::<JumpAnim>();
+			commands.entity(entity).remove::<ShakeAnim>();
 			continue;
 		}
 		
@@ -76,6 +72,7 @@ fn flip_anim(
 	mut tiles: Query<(Entity, &mut Transform, &Tile, &mut Handle<Image>, &mut FlipAnim)>,
 	time: Res<Time>,
 	tile_assets: Res<TileAssets>,
+	tile_map: Res<TileMap>,
 ) {
 	for (entity, transform, tile, texture, anim) in tiles.iter_mut() {
 		let entity: Entity = entity;
@@ -86,12 +83,19 @@ fn flip_anim(
 		
 		if anim.tick(time.delta()) { // Finished
 			transform.scale = Vec3::ONE;
-			commands.entity(entity).remove::<JumpAnim>();
+			commands.entity(entity).remove::<FlipAnim>();
+			// Give the next tile the flip anim
+			let x = tile.x as usize + 1;
+			let y = tile.y as usize;
+			if x < tile_map.tiles[0].len() {
+				commands.entity(tile_map.tiles[y][x]).insert(FlipAnim::new());
+			}
+			
 			continue;
 		}
 		
 		if anim.should_change() {
-			*texture = tile_assets.of_correctness(tile.correct);
+			*texture = tile_assets.of_correctness(tile.tt);
 		}
 		
 		let scale = (anim.scale()-0.5).abs() * 2.0;
@@ -99,13 +103,21 @@ fn flip_anim(
 	}
 }
 
+/// The animation for shaking the tiles.
 #[derive(Component)]
-struct ShakeAnim {
+pub struct ShakeAnim {
 	/// Elapsed duration.
 	d: Duration,
 }
 
 impl ShakeAnim {
+	/// Constructs a new [`ShakeAnim`]
+	pub fn new() -> Self {
+		Self {
+			d: Duration::ZERO,
+		}
+	}
+	
 	/// Ticks by duration, then returns weather it finished.
 	pub fn tick(&mut self, dur: Duration) -> bool {
 		self.d += dur;
@@ -118,13 +130,21 @@ impl ShakeAnim {
 	}
 }
 
+/// The Jump animation for adding a letter.
 #[derive(Component)]
-struct JumpAnim {
+pub struct JumpAnim {
 	/// Elapsed duration.
 	d: Duration,
 }
 
 impl JumpAnim {
+	/// Constructs a new [`JumpAnim`]
+	pub fn new() -> Self {
+		Self {
+			d: Duration::ZERO,
+		}
+	}
+	
 	/// Ticks by duration, then returns weather it finished.
 	pub fn tick(&mut self, dur: Duration) -> bool {
 		self.d += dur;
@@ -137,9 +157,9 @@ impl JumpAnim {
 	}
 }
 
-
+/// The animation for flipping the tile color.
 #[derive(Component)]
-struct FlipAnim {
+pub struct FlipAnim {
 	/// Elapsed duration.
 	d: Duration,
 	/// Weather this should change.
@@ -149,6 +169,15 @@ struct FlipAnim {
 }
 
 impl FlipAnim {
+	/// Constructs a new [`FlipAnim`]
+	pub fn new() -> Self {
+		Self {
+			d: Duration::ZERO,
+			should_change: false,
+			changed: false
+		}
+	}
+	
 	/// Ticks by duration, then returns weather it finished.
 	pub fn tick(&mut self, dur: Duration) -> bool {
 		self.d += dur;

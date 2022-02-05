@@ -1,11 +1,11 @@
 mod util;
 mod anim;
+mod keyboard;
 
-use std::f32::consts::PI;
 use bevy::prelude::*;
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
-use crate::anim::AnimPlugin;
+use crate::anim::{AnimPlugin, FlipAnim, JumpAnim, ShakeAnim};
 use crate::util::GetChar;
 
 const TILE_SIZE: f32    = 100.0;
@@ -13,10 +13,6 @@ const TILE_MARGIN: f32  = 10.0;
 const TILE_TOTAL: f32 = TILE_SIZE + TILE_MARGIN;
 
 const TEXT_SIZE: f32 = 30.0;
-
-const JUMP_ANIM_TIME: f32 = 0.1;
-const FLIP_ANIM_TIME: f32 = 0.5;
-const SHAKE_ANIM_TIME: f32 = 0.5;
 
 fn main() {
 	App::new()
@@ -28,12 +24,7 @@ fn main() {
 		.add_system(get_input)
 		.add_system(update_tile_graphic)
 		
-		// .add_plugin(AnimPlugin)
-		
-		.add_system(jump_anim)
-		.add_system(shake_anim)
-		.add_system(flip_anim)
-		
+		.add_plugin(AnimPlugin)
 		.run();
 }
 
@@ -41,7 +32,7 @@ struct WordDic(Vec<String>);
 
 #[derive(Copy, Clone)]
 #[derive(Debug)]
-enum Correct {
+enum TileType {
 	Default,
 	Correct,
 	Close,
@@ -50,7 +41,7 @@ enum Correct {
 
 #[derive(Component)]
 struct Tile {
-	correct: Correct,
+	tt: TileType,
 	c: Option<char>,
 	x: u32,
 	y: u32,
@@ -65,31 +56,17 @@ struct TileAssets {
 }
 
 impl TileAssets {
-	fn of_correctness(&self, correctness: Correct) -> Handle<Image> {
+	fn of_correctness(&self, correctness: TileType) -> Handle<Image> {
 		match correctness {
-			Correct::Correct => self.green.clone(),
-			Correct::Close => self.yellow.clone(),
-			Correct::Default => self.default.clone(),
-			Correct::Wrong => self.grey.clone(),
+			TileType::Correct => self.green.clone(),
+			TileType::Close => self.yellow.clone(),
+			TileType::Default => self.default.clone(),
+			TileType::Wrong => self.grey.clone(),
 		}
 	}
 }
 
 struct Word(String);
-
-// TODO: switch to durations
-// TODO: to real structs
-/// The Jump animation for adding a letter.
-#[derive(Component)]
-struct JumpAnim(f32);
-
-/// The animation for flipping the tile color.
-#[derive(Component)]
-struct FlipAnim(f32, bool);
-
-/// The animation for shaking the tiles.
-#[derive(Component)]
-struct ShakeAnim(f32);
 
 struct Cursor {
 	x: usize,
@@ -121,6 +98,8 @@ fn setup(
 	let dic_raw = std::fs::read_to_string("assets/dictionary.txt")
 		.expect("Check Dictionary File");
 	let dic: Vec<String> = dic_raw.trim().lines().filter(|w| w.chars().count() == 5).map(|w| w.to_owned()).collect();
+	println!("word count: {}", dic.len());
+	
 	
 	let mut rng = thread_rng();
 	commands.insert_resource(Word(dic.choose(&mut rng).unwrap().to_owned()));
@@ -204,19 +183,22 @@ fn get_input(
 					println!("{:?}", correctness);
 					for (e, c) in tile_iter.zip(correctness) {
 						let mut tile = tiles.get_mut(*e).unwrap();
-						tile.correct = c;
-						commands.entity(*e).insert(FlipAnim(0.0, false));
+						tile.tt = c;
 					}
 					
+					commands.entity(tile_map.tiles[cursor.y][0]).insert(FlipAnim::new());
 					
 					cursor.next_line();
+					if cursor.y == 6 {
+						println!("Word was: {}", word.0);
+					}
 					continue;
 				}
 			}
 			
 			// Shake row
 			for entity in tile_map.tiles[cursor.y].iter() {
-				commands.entity(*entity).insert(ShakeAnim(0.0));
+				commands.entity(*entity).insert(ShakeAnim::new());
 			}
 		}
 		
@@ -225,7 +207,7 @@ fn get_input(
 				let mut tile = tiles.get_mut(entity).unwrap();
 				tile.c = Some(c);
 				// Start the animation.
-				commands.entity(entity).insert(JumpAnim(0.0));
+				commands.entity(entity).insert(JumpAnim::new());
 				
 				cursor.x += 1;
 				cursor.x = cursor.x.clamp(0, 5);
@@ -236,16 +218,12 @@ fn get_input(
 
 /// Updates the graphics of the tiles (text and background).
 fn update_tile_graphic(
-	mut tiles: Query<(&mut Tile, &mut Handle<Image>, &Children), Changed<Tile>>,
+	tiles: Query<(&Tile, &Children), Changed<Tile>>,
 	mut text_q: Query<&mut Text>,
-	tile_assets: Res<TileAssets>,
 ) {
-	for (tile, texture, children) in tiles.iter_mut() {
+	for (tile, children) in tiles.iter() {
 		let children: &Children = children;
-		let mut tile: Mut<Tile> = tile;
-		let mut texture: Mut<Handle<Image>> = texture;
-		
-		// *texture = tile_assets.of_correctness(tile.correct);
+		let tile: &Tile = tile;
 		
 		// The only child should be the entity holding the text
 		let text_entity = children.iter().next().unwrap();
@@ -257,96 +235,6 @@ fn update_tile_graphic(
 		if let Some(c) = tile.c {
 			val.push(c);
 		}
-	}
-}
-
-fn shake_anim(
-	mut commands: Commands,
-	mut tiles: Query<(Entity, &Tile, &mut Transform, &mut ShakeAnim)>,
-	time: Res<Time>,
-) {
-	for (entity, tile, transform, anim) in tiles.iter_mut() {
-		let entity: Entity = entity;
-		let tile: &Tile = tile;
-		let mut transform: Mut<Transform> = transform;
-		let mut anim: Mut<ShakeAnim> = anim;
-		
-		// Tick
-		anim.0 += time.delta_seconds();
-		
-		let mut pos = get_tile_pos(tile.x as i32, tile.y as i32);
-		let anim_scale = anim.0 / SHAKE_ANIM_TIME;
-		
-		if anim.0 > SHAKE_ANIM_TIME { // finished
-			transform.translation = pos;
-			commands.entity(entity).remove::<JumpAnim>();
-			continue;
-		}
-		
-		let shake_offset = (anim_scale * PI).sin() * 8.0 * (anim_scale * PI * 8.0).sin();
-		pos.x += shake_offset;
-		transform.translation = pos;
-	}
-}
-
-fn jump_anim(
-	mut commands: Commands,
-	mut tiles: Query<(Entity, &mut Transform, &mut JumpAnim), With<Tile>>,
-	time: Res<Time>,
-) {
-	for (entity, transform, anim) in tiles.iter_mut() {
-		let entity: Entity = entity;
-		let mut transform: Mut<Transform> = transform;
-		let mut anim: Mut<JumpAnim> = anim;
-		
-		// Tick
-		anim.0 += time.delta_seconds();
-		let animated_scale = anim.0 / JUMP_ANIM_TIME;
-		
-		if anim.0 > JUMP_ANIM_TIME {
-			transform.scale = Vec3::ONE;
-			commands.entity(entity).remove::<JumpAnim>();
-			continue;
-		}
-		
-		// Calculate new size
-		let size = 1.0 + 0.1 * (PI * animated_scale).sin();
-		
-		transform.scale = Vec3::splat(size);
-	}
-}
-
-fn flip_anim(
-	mut commands: Commands,
-	mut tiles: Query<(Entity, &mut Transform, &Tile, &mut Handle<Image>, &mut FlipAnim)>,
-	time: Res<Time>,
-	tile_assets: Res<TileAssets>,
-) {
-	for (entity, transform, tile, texture, anim) in tiles.iter_mut() {
-		let entity: Entity = entity;
-		let mut transform: Mut<Transform> = transform;
-		let tile: &Tile = tile;
-		let mut texture: Mut<Handle<Image>> = texture;
-		let mut anim: Mut<FlipAnim> = anim;
-		
-		// Tick
-		anim.0 += time.delta_seconds();
-		let animated_scale = anim.0 / FLIP_ANIM_TIME;
-		
-		if anim.0 > FLIP_ANIM_TIME { // End animation
-			transform.scale = Vec3::ONE;
-			commands.entity(entity).remove::<JumpAnim>();
-			continue;
-		}
-		
-		if !anim.1 && animated_scale > 0.5 { // Switch texture
-			anim.1 = true;
-		
-			*texture = tile_assets.of_correctness(tile.correct);
-		}
-		
-		let scale = (animated_scale-0.5).abs() * 2.0;
-		transform.scale.y = scale;
 	}
 }
 
@@ -393,7 +281,7 @@ fn spawn_tile(
 			
 			..Default::default()
 		})
-		.insert(Tile { correct: Correct::Default, x: x as u32, y: y as u32, c: None})
+		.insert(Tile { tt: TileType::Default, x: x as u32, y: y as u32, c: None})
 		.id()
 }
 
@@ -405,19 +293,19 @@ fn get_tile_pos(x: i32, y: i32) -> Vec3 {
 	)
 }
 
-fn correctness(correct: &str, guess: &str) -> [Correct; 5] {
+fn correctness(correct: &str, guess: &str) -> [TileType; 5] {
 	assert_eq!(correct.len(), 5);
 	assert_eq!(guess.len(), 5);
 	
-	let mut correctness = [Correct::Wrong; 5];
+	let mut correctness = [TileType::Wrong; 5];
 	// TODO: do multiples
 	for (i, c) in guess.chars().enumerate() {
 		let correct_c = correct.chars().nth(i).unwrap();
 		if c == correct_c {
-			correctness[i] = Correct::Correct;
+			correctness[i] = TileType::Correct;
 			// TODO: other
 		} else if correct.contains(c) {
-			correctness[i] = Correct::Close;
+			correctness[i] = TileType::Close;
 		}
 	}
 	
