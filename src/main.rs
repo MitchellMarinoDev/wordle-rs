@@ -97,7 +97,7 @@ fn setup(
 	// Dictionary
 	let dic_raw = std::fs::read_to_string("assets/dictionary.txt")
 		.expect("Check Dictionary File");
-	let dic: Vec<String> = dic_raw.trim().lines().filter(|w| w.chars().count() == 5).map(|w| w.to_owned()).collect();
+	let dic: Vec<String> = dic_raw.trim().lines().map(|w| w.to_owned()).collect();
 	println!("word count: {}", dic.len());
 	
 	
