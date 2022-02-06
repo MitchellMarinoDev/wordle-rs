@@ -1,11 +1,15 @@
 mod util;
 mod anim;
 mod keyboard;
+mod events;
 
+use std::fmt::Formatter;
+use std::ops::{Deref, DerefMut};
 use bevy::prelude::*;
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
-use crate::anim::{AnimPlugin, FlipAnim, JumpAnim, ShakeAnim};
+use crate::anim::AnimPlugin;
+use crate::events::{Events, Guess, InvalidGuess, TypedLetter};
 use crate::util::GetChar;
 
 const TILE_SIZE: f32    = 100.0;
@@ -19,16 +23,44 @@ fn main() {
 		.add_plugins(DefaultPlugins)
 		.insert_resource(ClearColor(Color::rgb_u8(0x12, 0x12, 0x13)))
 		
-		.add_startup_system(setup)
-		
-		.add_system(get_input)
-		.add_system(update_tile_graphic)
-		
+		.add_plugin(Events)
 		.add_plugin(AnimPlugin)
+		
+		.add_startup_system(setup)
+		.add_system(guess_check)
+		.add_system(update_chars)
+		.add_system(get_input)
+		.add_system(update_tile_chars)
+		
 		.run();
 }
 
+// TODO: change camera to scale
+
+// TODO: color tiles with bevy, not have multiple images
+
+// TODO: MILESTONES
+//      Confetti
+//      Show Word on fail
+//      Correct anim
+
+// TODO: move resources to separate file
+#[derive(Clone)]
 struct WordDic(Vec<String>);
+
+impl Deref for WordDic {
+	type Target = Vec<String>;
+	
+	fn deref(&self) -> &Self::Target {
+		&self.0
+	}
+}
+
+impl DerefMut for WordDic {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		&mut self.0
+	}
+}
 
 #[derive(Copy, Clone)]
 #[derive(Debug)]
@@ -66,23 +98,59 @@ impl TileAssets {
 	}
 }
 
+#[derive(Clone)]
+#[derive(PartialOrd, Ord, PartialEq, Eq)]
+#[derive(Hash, Debug, Default)]
 struct Word(String);
 
-struct Cursor {
-	x: usize,
-	y: usize,
+impl std::fmt::Display for Word {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		std::fmt::Display::fmt(&self.0, f)
+	}
+}
+
+impl Deref for Word {
+	type Target = String;
+	
+	fn deref(&self) -> &Self::Target {
+		&self.0
+	}
+}
+
+impl DerefMut for Word {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		&mut self.0
+	}
+}
+
+pub struct Cursor {
+	pub x: usize,
+	pub y: usize,
 }
 
 impl Cursor {
-	fn next_line(&mut self) -> bool {
+	fn next_line(&mut self) {
 		self.y += 1;
 		self.x = 0;
-		true // TODO: return conditionally
 	}
 }
 
 struct TileMap {
 	tiles: [[Entity; 5]; 6],
+}
+
+impl Deref for TileMap {
+	type Target = [[Entity; 5]; 6];
+	
+	fn deref(&self) -> &Self::Target {
+		&self.tiles
+	}
+}
+
+impl DerefMut for TileMap {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		&mut self.tiles
+	}
 }
 
 fn setup(
@@ -138,7 +206,7 @@ fn setup(
 	
 	for y in 0..6 {
 		for x in 0..5 {
-			tile_map.tiles[y as usize][x as usize] =
+			tile_map[y as usize][x as usize] =
 			spawn_tile(&mut commands, tile_assets.default.clone(), font.clone(), x, y);
 		}
 	}
@@ -146,14 +214,53 @@ fn setup(
 	commands.insert_resource(tile_map);
 }
 
+fn guess_check(
+	mut tiles_q: Query<&mut Tile>,
+	mut guess_r: EventReader<Guess>,
+	tile_map: Res<TileMap>,
+	mut cursor: ResMut<Cursor>,
+	word: Res<Word>,
+) {
+	for guess in guess_r.iter() {
+		let tile_iter = tile_map[cursor.y].iter();
+		let guess: &Guess = guess;
+		
+		let correctness = correctness(&*word, &guess.word);
+		for (e, c) in tile_iter.zip(correctness) {
+			let mut tile = tiles_q.get_mut(*e).unwrap();
+			tile.tt = c;
+		}
+		
+		cursor.next_line();
+		if cursor.y == 6 {
+			println!("Word was: {}", *word);
+		}
+	}
+}
+
+fn update_chars(
+	mut tiles_q: Query<&mut Tile>,
+	mut typed_letter_r: EventReader<TypedLetter>,
+	tile_map: Res<TileMap>,
+) {
+	for typed_letter in typed_letter_r.iter() {
+		let typed_letter: &TypedLetter = typed_letter;
+		let tile_e = tile_map[typed_letter.y][typed_letter.x];
+		let mut tile = tiles_q.get_mut(tile_e).unwrap();
+		tile.c = Some(typed_letter.letter);
+	}
+}
+
 fn get_input(
-	mut commands: Commands,
-	mut tiles: Query<&mut Tile>,
+	mut tiles_q: Query<&mut Tile>,
 	keys: Res<Input<KeyCode>>,
 	tile_map: Res<TileMap>,
 	mut cursor: ResMut<Cursor>,
 	dic: Res<WordDic>,
-	word: Res<Word>,
+	
+	mut inv_guess_w: EventWriter<InvalidGuess>,
+	mut guess_w: EventWriter<Guess>,
+	mut typed_letter_w: EventWriter<TypedLetter>,
 ) {
 	for k in keys.get_just_pressed() {
 		let k: &KeyCode = k;
@@ -163,52 +270,48 @@ fn get_input(
 				cursor.x -= 1;
 			}
 			
-			let entity = tile_map.tiles[cursor.y][cursor.x];
-			let mut tile = tiles.get_mut(entity).unwrap();
+			let entity = tile_map[cursor.y][cursor.x];
+			let mut tile = tiles_q.get_mut(entity).unwrap();
 			tile.c = None;
 		}
 		
 		if *k == KeyCode::Return {
 			if cursor.x == 5 {
-				// Check Dictionary
-				let guess: String = tile_map.tiles[cursor.y].iter()
-					.map(|e| tiles.get(*e).unwrap().c.unwrap())
+				// Compile the guess into a string.
+				let guess: String = tile_map[cursor.y].iter()
+					.map(|e| tiles_q.get(*e).unwrap().c.unwrap())
 					.collect::<String>()
 					.to_lowercase();
 				
-				if dic.0.contains(&guess) {
-					let tile_iter = tile_map.tiles[cursor.y].iter();
+				// Check Dictionary
+				if dic.contains(&guess) {
+					// Guess is a valid word; send event.
+					guess_w.send(Guess {
+						word: guess,
+						row: cursor.y,
+					});
 					
-					let correctness = correctness(&*word.0, &*guess);
-					println!("{:?}", correctness);
-					for (e, c) in tile_iter.zip(correctness) {
-						let mut tile = tiles.get_mut(*e).unwrap();
-						tile.tt = c;
-					}
-					
-					commands.entity(tile_map.tiles[cursor.y][0]).insert(FlipAnim::new());
-					
-					cursor.next_line();
-					if cursor.y == 6 {
-						println!("Word was: {}", word.0);
-					}
 					continue;
 				}
 			}
 			
-			// Shake row
-			for entity in tile_map.tiles[cursor.y].iter() {
-				commands.entity(*entity).insert(ShakeAnim::new());
-			}
+			// Invalid guess; send event.
+			inv_guess_w.send(InvalidGuess {
+				row: cursor.y,
+			});
+			
 		}
 		
+		// if the key is a character
 		if let Some(c) = k.get_char() {
-			if let Some(&entity) = tile_map.tiles[cursor.y].get(cursor.x) {
-				let mut tile = tiles.get_mut(entity).unwrap();
-				tile.c = Some(c);
-				// Start the animation.
-				commands.entity(entity).insert(JumpAnim::new());
-				
+			if cursor.x < 5 {
+				// Cursor inbounds; send event.
+				typed_letter_w.send(TypedLetter {
+					x: cursor.x,
+					y: cursor.y,
+					letter: c,
+				});
+				// Move the cursor
 				cursor.x += 1;
 				cursor.x = cursor.x.clamp(0, 5);
 			}
@@ -216,12 +319,12 @@ fn get_input(
 	}
 }
 
-/// Updates the graphics of the tiles (text and background).
-fn update_tile_graphic(
-	tiles: Query<(&Tile, &Children), Changed<Tile>>,
+/// Updates the characters of the tiles.
+fn update_tile_chars(
+	tiles_q: Query<(&Tile, &Children), Changed<Tile>>,
 	mut text_q: Query<&mut Text>,
 ) {
-	for (tile, children) in tiles.iter() {
+	for (tile, children) in tiles_q.iter() {
 		let children: &Children = children;
 		let tile: &Tile = tile;
 		

@@ -1,7 +1,7 @@
 use std::f32::consts::PI;
 use std::time::Duration;
 use bevy::prelude::*;
-use crate::{App, get_tile_pos, Tile, TileAssets, TileMap};
+use crate::{App, get_tile_pos, Guess, InvalidGuess, Tile, TileAssets, TileMap, TypedLetter};
 
 const JUMP_ANIM_TIME: Duration = Duration::from_millis(100);
 const FLIP_ANIM_TIME: Duration = Duration::from_millis(300);
@@ -11,13 +11,56 @@ pub struct AnimPlugin;
 
 impl Plugin for AnimPlugin {
 	fn build(&self, app: &mut App) {
+		// TODO: label these systems;
 		app
+			.add_system(start_shake)
+			.add_system(start_jump)
+			.add_system(start_flip)
+			
 			.add_system(shake_anim)
 			.add_system(jump_anim)
 			.add_system(flip_anim)
 		;
 	}
 }
+
+fn start_shake(
+	mut commands: Commands,
+	mut inv_guess_r: EventReader<InvalidGuess>,
+	tile_map: Res<TileMap>,
+) {
+	for inv_guess in inv_guess_r.iter() {
+		let inv_guess: &InvalidGuess = inv_guess;
+		
+		for entity in tile_map.tiles[inv_guess.row].iter() {
+			commands.entity(*entity).insert(ShakeAnim::new());
+		}
+	}
+}
+
+fn start_jump(
+	mut commands: Commands,
+	mut typed_letter_r: EventReader<TypedLetter>,
+	tile_map: Res<TileMap>,
+) {
+	for typed_letter in typed_letter_r.iter() {
+		let typed_letter: &TypedLetter = typed_letter;
+		
+		commands.entity(tile_map.tiles[typed_letter.y][typed_letter.x]).insert(JumpAnim::new());
+	}
+}
+
+fn start_flip(
+	mut commands: Commands,
+	mut guess_r: EventReader<Guess>,
+	tile_map: Res<TileMap>,
+) {
+	for guess in guess_r.iter() {
+		let guess: &Guess = guess;
+		commands.entity(tile_map.tiles[guess.row][0]).insert(FlipAnim::new());
+	}
+}
+
 
 fn shake_anim(
 	mut commands: Commands,
