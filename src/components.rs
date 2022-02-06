@@ -38,6 +38,7 @@ impl DerefMut for WordDic {
 
 #[derive(Copy, Clone)]
 #[derive(Debug)]
+#[derive(Eq, PartialEq)]
 pub enum TileType {
 	Default,
 	Correct,

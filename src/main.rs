@@ -12,6 +12,7 @@ use components::*;
 use crate::anim::AnimPlugin;
 use crate::events::{Events, Guess, InvalidGuess, TypedLetter};
 use crate::keyboard::KeyboardPlugin;
+use crate::TileType::Correct;
 use crate::util::GetChar;
 
 const TILE_SIZE: f32 = 100.0;
@@ -58,8 +59,6 @@ fn main() {
 // TODO: Doc and test
 
 // TODO: change camera to scale
-
-// TODO: color tiles with bevy, not have multiple images
 
 // TODO: MILESTONES
 //      game win events/anim
@@ -312,17 +311,40 @@ fn correctness(correct: &str, guess: &str) -> [TileType; 5] {
 	assert_eq!(correct.len(), 5);
 	assert_eq!(guess.len(), 5);
 	
+	let mut guess_chars: Vec<_> = guess.chars().collect();
+	let mut correct_chars: Vec<_> = correct.chars().collect();
+	
 	let mut correctness = [TileType::Wrong; 5];
-	// TODO: do multiples
-	for (i, c) in guess.chars().enumerate() {
-		let correct_c = correct.chars().nth(i).unwrap();
-		if c == correct_c {
-			correctness[i] = TileType::Correct;
-			// TODO: other
-		} else if correct.contains(c) {
-			correctness[i] = TileType::Close;
+	
+	// Check correct first
+	for idx in 0..5 {
+		if guess_chars[idx] == correct_chars[idx] {
+			correctness[idx] = TileType::Correct;
+			correct_chars[idx] = '-'; // Make sure the char doesn't get matched again
+		}
+	}
+	
+	// Now check for wrong spot
+	for idx in 0..5 {
+		// If this character was already found to be correct, skip it.
+		if correctness[idx] == Correct { continue; }
+		
+		let c = guess_chars[idx];
+		if let Some(c_idx) = correct_chars.iter().position(|o| *o == c) {
+			correctness[idx] = TileType::Close;
+			correct_chars[c_idx] = '-';
 		}
 	}
 	
 	correctness
+}
+
+#[test]
+fn test_correctness_logic() {
+	use TileType::*;
+	assert_eq!(correctness("hello", "lemon"), [Close, Correct, Wrong, Close, Wrong]);
+	assert_eq!(correctness("hello", "ppplp"), [Wrong, Wrong, Wrong, Correct, Wrong]);
+	assert_eq!(correctness("hello", "shark"), [Wrong, Close, Wrong, Wrong, Wrong]);
+	assert_eq!(correctness("mints", "mmmmm"), [Correct, Wrong, Wrong, Wrong, Wrong]);
+	assert_eq!(correctness("slips", "ssssk"), [Correct, Close, Wrong, Wrong, Wrong]);
 }
