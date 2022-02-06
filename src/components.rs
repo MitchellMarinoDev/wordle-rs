@@ -3,7 +3,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 use bevy::prelude::{Component, Res};
 use bevy::ecs::schedule::{ShouldRun, SystemLabel};
-use crate::{Color, D_GREY, Entity, GREEN, Handle, Image, L_GREY, YELLOW};
+use crate::{Color, D_GREY, Entity, GREEN, Handle, Image, L_GREY, Quat, Vec3, YELLOW};
 
 ///! Contains components and resources.
 #[derive(Copy, Clone)]
@@ -140,6 +140,17 @@ impl DerefMut for TileMap {
 	fn deref_mut(&mut self) -> &mut Self::Target {
 		&mut self.tiles
 	}
+}
+
+#[derive(Component)]
+pub struct ConfettiSpawner {
+	pub dir: Vec3,
+}
+
+#[derive(Component)]
+pub struct Confetti {
+	pub velocity: Vec3,
+	pub rot: Quat,
 }
 
 /// Can be used to pause the game as long as a [`PauseLock`] exists.

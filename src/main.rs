@@ -83,9 +83,10 @@ fn setup(
 	let dic: Vec<String> = dic_raw.trim().lines().map(|w| w.to_owned()).collect();
 	println!("word count: {}", dic.len());
 	
-	
 	let mut rng = thread_rng();
-	commands.insert_resource(Word(dic.choose(&mut rng).unwrap().to_owned()));
+	let correct_word = dic.choose(&mut rng).unwrap().to_owned();
+	println!("Word is: {}", correct_word);
+	commands.insert_resource(Word(correct_word));
 	commands.insert_resource(WordDic(dic));
 	
 	let tile_assets = TileAssets {
@@ -200,6 +201,7 @@ fn get_input(
 						// Game won
 						game_win_w.send(GameWin {
 							word: guess,
+							row: cursor.y,
 						})
 					} else {
 						// Game not won

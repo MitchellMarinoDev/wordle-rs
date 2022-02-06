@@ -16,9 +16,13 @@ impl Plugin for Events {
 }
 
 /// An event that is fired when the player makes a valid guess.
+#[derive(Clone)]
 pub struct Guess {
+	/// The word that was guessed.
 	pub word: String,
+	/// The correctness of the guess.
 	pub correctness: [TileType; 5],
+	/// The row that was guessed on.
 	pub row: usize,
 }
 
@@ -39,8 +43,29 @@ pub struct TypedLetter {
 	pub letter: char,
 }
 
-pub struct EndFlipAnim;
+#[derive(Clone)]
+pub struct EndFlipAnim {
+	/// The word that was guessed.
+	pub word: String,
+	/// The correctness of the guess.
+	pub correctness: [TileType; 5],
+	/// The row that was guessed on.
+	pub row: usize,
+}
+
+impl Into<EndFlipAnim> for &Guess {
+	fn into(self) -> EndFlipAnim {
+		EndFlipAnim {
+			row: self.row,
+			word: self.word.clone(),
+			correctness: self.correctness,
+		}
+	}
+}
 
 pub struct GameWin {
+	/// The correct word.
 	pub word: String,
+	/// The row that the game was won on
+	pub row: usize,
 }

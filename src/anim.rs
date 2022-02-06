@@ -1,7 +1,8 @@
 use std::f32::consts::PI;
 use std::time::Duration;
 use bevy::prelude::*;
-use crate::{App, get_tile_pos, Guess, InvalidGuess, Pause, PauseLock, SysLabel, TypedLetter};
+use rand::{Rng, thread_rng};
+use crate::{App, Confetti, ConfettiSpawner, GameWin, get_tile_pos, Guess, InvalidGuess, Pause, PauseLock, SysLabel, TileType, TypedLetter};
 use crate::components::{Tile, TileAssets, TileMap};
 use crate::events::EndFlipAnim;
 use crate::keyboard::Key;
@@ -10,27 +11,41 @@ use crate::util::GetKeyCode;
 const JUMP_ANIM_TIME: Duration = Duration::from_millis(100);
 const FLIP_ANIM_TIME: Duration = Duration::from_millis(300);
 const SHAKE_ANIM_TIME: Duration = Duration::from_millis(500);
+const WAVE_ANIM_TIME: Duration = Duration::from_millis(200);
+const WAVE_AMPL: f32 = 30.0;
+
+const CONFETTI_COUNT: u32 = 100;
 
 pub struct AnimPlugin;
 
 impl Plugin for AnimPlugin {
 	fn build(&self, app: &mut App) {
-		app.add_system_set(SystemSet::new()
-			.label(SysLabel::Anim)
-			.after(SysLabel::Logic)
-			
-			.with_system(color_keyboard)
-			.with_system(set_keyboard_color)
-			.with_system(keyboard_jump)
-			
-			.with_system(start_shake)
-			.with_system(start_jump)
-			.with_system(start_flip)
-			
-			.with_system(shake_anim)
-			.with_system(jump_anim)
-			.with_system(flip_anim)
-		);
+		app
+			.add_startup_system(setup_confetti_spawners)
+		
+			.add_system_set(SystemSet::new()
+				.label(SysLabel::Anim)
+				.after(SysLabel::Logic)
+				
+				.with_system(color_keyboard)
+				.with_system(set_keyboard_color)
+				.with_system(keyboard_jump)
+				.with_system(spawn_confetti)
+				.with_system(confetti_move)
+				.with_system(confetti_gravity)
+				
+				
+				.with_system(start_shake)
+				.with_system(start_jump)
+				.with_system(start_flip)
+				.with_system(start_wave)
+				
+				.with_system(shake_anim)
+				.with_system(jump_anim)
+				.with_system(flip_anim)
+				.with_system(wave_anim)
+			)
+		;
 	}
 }
 
@@ -66,11 +81,23 @@ fn start_flip(
 	mut commands: Commands,
 	mut guess_r: EventReader<Guess>,
 	tile_map: Res<TileMap>,
-	pause: Res<Pause>
+	pause: Res<Pause>,
 ) {
 	for guess in guess_r.iter() {
 		let guess: &Guess = guess;
-		commands.entity(tile_map[guess.row][0]).insert(FlipAnim::new(pause.lock()));
+		commands.entity(tile_map[guess.row][0]).insert(FlipAnim::new(pause.lock(), guess.into()));
+	}
+}
+
+fn start_wave(
+	mut commands: Commands,
+	mut end_flip_anim_r: EventReader<EndFlipAnim>,
+	tile_map: Res<TileMap>,
+) {
+	for end_flip_anim in end_flip_anim_r.iter() {
+		let end_flip_anim: &EndFlipAnim = end_flip_anim;
+		
+		commands.entity(tile_map[end_flip_anim.row][0]).insert(WaveAnim::new());
 	}
 }
 
@@ -146,9 +173,9 @@ fn flip_anim(
 			let x = tile.x as usize + 1;
 			let y = tile.y as usize;
 			if x < tile_map[0].len() {
-				commands.entity(tile_map[y][x]).insert(FlipAnim::new(anim.pause_lock.clone()));
+				commands.entity(tile_map[y][x]).insert(FlipAnim::new(anim.pause_lock.clone(), anim.end_event.clone()));
 			} else {
-				end_flip_anim_w.send(EndFlipAnim);
+				end_flip_anim_w.send(anim.end_event.clone());
 			}
 			
 			continue;
@@ -161,6 +188,40 @@ fn flip_anim(
 		
 		let scale = (anim.scale()-0.5).abs() * 2.0;
 		transform.scale.y = scale;
+	}
+}
+
+fn wave_anim(
+	mut commands: Commands,
+	mut tiles: Query<(Entity, &mut Transform, &Tile, &mut WaveAnim)>,
+	time: Res<Time>,
+	tile_map: Res<TileMap>,
+) {
+	for (entity, transform, tile, anim) in tiles.iter_mut() {
+		let entity: Entity = entity;
+		let mut transform: Mut<Transform> = transform;
+		let tile: &Tile = tile;
+		let mut anim: Mut<WaveAnim> = anim;
+		
+		if anim.tick(time.delta()) { // Finished
+			// TODO: change fn signature of `get_tile_pos` to use usize.
+			transform.translation = get_tile_pos(tile.x as i32, tile.y as i32);
+			commands.entity(entity).remove::<WaveAnim>();
+			// Give the next tile the flip anim
+			let x = tile.x as usize + 1;
+			let y = tile.y as usize;
+			if x < tile_map[0].len() {
+				commands.entity(tile_map[y][x]).insert(WaveAnim::new());
+			}
+			
+			continue;
+		}
+		
+		let mut pos = get_tile_pos(tile.x as i32, tile.y as i32);
+		let height = (anim.scale() * PI).sin() * WAVE_AMPL;
+		pos.y += height;
+		
+		transform.translation = pos;
 	}
 }
 
@@ -214,6 +275,93 @@ fn keyboard_jump(
 			}
 		}
 	}
+}
+
+fn confetti_move(
+	mut confetti_q: Query<(&mut Transform, &Confetti)>
+) {
+	for (transform, confetti) in confetti_q.iter_mut() {
+		let mut transform: Mut<Transform> = transform;
+		let confetti: &Confetti = confetti;
+		
+		transform.translation += confetti.velocity;
+		transform.rotation = transform.rotation.mul_quat(confetti.rot);
+	}
+}
+
+fn confetti_gravity(
+	mut confetti_q: Query<&mut Confetti>,
+	time: Res<Time>,
+) {
+	for mut confetti in confetti_q.iter_mut() {
+		confetti.velocity.y -= time.delta_seconds() * 5.0;
+	}
+}
+
+fn spawn_confetti(
+	mut commands: Commands,
+	mut confetti_spawner_q: Query<(&Transform, &ConfettiSpawner)>,
+	mut end_flip_anim_r: EventReader<EndFlipAnim>,
+) {
+	for end_flip_anim in end_flip_anim_r.iter() {
+		let end_flip_anim: &EndFlipAnim = end_flip_anim;
+		
+		let mut rng = thread_rng();
+		
+		if end_flip_anim.correctness == [TileType::Correct; 5] {
+			for (transform, confetti_spawner) in confetti_spawner_q.iter() {
+				let transform: &Transform = transform;
+				let confetti_spawner: &ConfettiSpawner = confetti_spawner;
+				
+				let v_x = confetti_spawner.dir.x;
+				let v_y = confetti_spawner.dir.y;
+				let rand = 0.3..1.7;
+				
+				for _i in 0..CONFETTI_COUNT {
+					let velocity = Vec3::new(
+						v_x * rng.gen_range::<f32, _>(rand.clone()),
+						v_y * rng.gen_range::<f32, _>(rand.clone()),
+						0.0,
+					);
+					
+					let rot = Quat::from_rotation_z(rng.gen_range(0.0..0.5));
+					
+					commands.spawn()
+						.insert_bundle(SpriteBundle {
+							sprite: Sprite {
+								color: Color::rgb_u8(rng.gen(), rng.gen(), rng.gen()),
+								custom_size: Some(Vec2::new(10.0, 5.0)),
+								..Default::default()
+							},
+							transform: transform.clone(),
+							..Default::default()
+						})
+						.insert(Confetti {
+							velocity,
+							rot,
+						})
+					;
+				}
+			}
+		}
+	}
+}
+
+// TODO: place these at the edge of the screen
+fn setup_confetti_spawners(
+	mut commands: Commands,
+) {
+	commands.spawn()
+		.insert(ConfettiSpawner {
+			dir: Vec3::new(-5.0, 7.0, 0.0),
+		})
+		.insert(Transform::from_translation(Vec3::new(550.0, -200.0, 0.0)));
+	
+	commands.spawn()
+		.insert(ConfettiSpawner {
+			dir: Vec3::new(5.0, 7.0, 0.0),
+		})
+		.insert(Transform::from_translation(Vec3::new(-550.0, -200.0, 0.0)));
 }
 
 /// The animation for shaking the tiles.
@@ -282,16 +430,19 @@ pub struct FlipAnim {
 	changed: bool,
 	/// The flip animation should pause the game.
 	pause_lock: PauseLock,
+	/// The end flip animation event that should be fired once the chain is done.
+	end_event: EndFlipAnim,
 }
 
 impl FlipAnim {
 	/// Constructs a new [`FlipAnim`]
-	pub fn new(pause_lock: PauseLock) -> Self {
+	pub fn new(pause_lock: PauseLock, end_event: EndFlipAnim) -> Self {
 		Self {
 			d: Duration::ZERO,
 			should_change: false,
 			changed: false,
 			pause_lock,
+			end_event,
 		}
 	}
 	
@@ -316,5 +467,32 @@ impl FlipAnim {
 	/// Returns a float of how completed the animation is.
 	pub fn scale(&self) -> f32 {
 		self.d.as_secs_f32() / FLIP_ANIM_TIME.as_secs_f32()
+	}
+}
+
+/// The animation for the wave that the letters do on win.
+#[derive(Component)]
+pub struct WaveAnim {
+	/// Elapsed duration.
+	d: Duration,
+}
+
+impl WaveAnim {
+	/// Constructs a new [`WaveAnim`]
+	pub fn new() -> Self {
+		Self {
+			d: Duration::ZERO,
+		}
+	}
+	
+	/// Ticks by duration, then returns weather it finished.
+	pub fn tick(&mut self, dur: Duration) -> bool {
+		self.d += dur;
+		self.d > WAVE_ANIM_TIME
+	}
+	
+	/// Returns a float of how completed the animation is.
+	pub fn scale(&self) -> f32 {
+		self.d.as_secs_f32() / WAVE_ANIM_TIME.as_secs_f32()
 	}
 }
