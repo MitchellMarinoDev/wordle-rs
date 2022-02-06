@@ -90,10 +90,8 @@ fn setup(
 	commands.insert_resource(WordDic(dic));
 	
 	let tile_assets = TileAssets {
-		default: asset_server.load("tiles/default.png"),
-		grey: asset_server.load("tiles/grey.png"),
-		yellow: asset_server.load("tiles/yellow.png"),
-		green: asset_server.load("tiles/green.png"),
+		default: asset_server.load("tiles/outline.png"),
+		colored: asset_server.load("tiles/colored.png"),
 	};
 	
 	commands.insert_resource(tile_assets.clone());

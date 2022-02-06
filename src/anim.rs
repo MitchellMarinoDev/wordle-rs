@@ -123,17 +123,18 @@ fn jump_anim(
 
 fn flip_anim(
 	mut commands: Commands,
-	mut tiles: Query<(Entity, &mut Transform, &Tile, &mut Handle<Image>, &mut FlipAnim)>,
+	mut tiles: Query<(Entity, &mut Transform, &Tile, &mut Handle<Image>, &mut Sprite, &mut FlipAnim)>,
 	time: Res<Time>,
 	tile_assets: Res<TileAssets>,
 	tile_map: Res<TileMap>,
 	mut end_flip_anim_w: EventWriter<EndFlipAnim>,
 ) {
-	for (entity, transform, tile, texture, anim) in tiles.iter_mut() {
+	for (entity, transform, tile, texture, sprite, anim) in tiles.iter_mut() {
 		let entity: Entity = entity;
 		let mut transform: Mut<Transform> = transform;
 		let tile: &Tile = tile;
 		let mut texture: Mut<Handle<Image>> = texture;
+		let mut sprite: Mut<Sprite> = sprite;
 		let mut anim: Mut<FlipAnim> = anim;
 		
 		if anim.tick(time.delta()) { // Finished
@@ -152,7 +153,8 @@ fn flip_anim(
 		}
 		
 		if anim.should_change() {
-			*texture = tile_assets.of_correctness(tile.tt);
+			*texture = tile_assets.colored.clone();
+			sprite.color = tile.tt.color();
 		}
 		
 		let scale = (anim.scale()-0.5).abs() * 2.0;

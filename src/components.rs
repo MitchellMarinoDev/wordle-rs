@@ -67,20 +67,7 @@ pub struct Tile {
 #[derive(Clone)]
 pub struct TileAssets {
 	pub default: Handle<Image>,
-	pub grey: Handle<Image>,
-	pub yellow: Handle<Image>,
-	pub green: Handle<Image>,
-}
-
-impl TileAssets {
-	pub fn of_correctness(&self, correctness: TileType) -> Handle<Image> {
-		match correctness {
-			TileType::Correct => self.green.clone(),
-			TileType::Close => self.yellow.clone(),
-			TileType::Default => self.default.clone(),
-			TileType::Wrong => self.grey.clone(),
-		}
-	}
+	pub colored: Handle<Image>,
 }
 
 #[derive(Clone)]
