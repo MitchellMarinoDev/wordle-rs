@@ -1,8 +1,9 @@
 use std::ops::{Deref, DerefMut};
 use std::fmt::Formatter;
-use bevy::prelude::Component;
-use bevy::ecs::schedule::SystemLabel;
-use crate::{Entity, Handle, Image};
+use std::sync::Arc;
+use bevy::prelude::{Component, Res};
+use bevy::ecs::schedule::{ShouldRun, SystemLabel};
+use crate::{Color, D_GREY, Entity, GREEN, Handle, Image, L_GREY, YELLOW};
 
 ///! Contains components and resources.
 #[derive(Copy, Clone)]
@@ -42,6 +43,17 @@ pub enum TileType {
 	Correct,
 	Close,
 	Wrong,
+}
+
+impl TileType {
+	pub fn color(&self) -> Color {
+		match self {
+			TileType::Default => *L_GREY,
+			TileType::Correct => *GREEN,
+			TileType::Close => *YELLOW,
+			TileType::Wrong => *D_GREY,
+		}
+	}
 }
 
 #[derive(Component)]
@@ -106,6 +118,11 @@ impl Cursor {
 		self.y += 1;
 		self.x = 0;
 	}
+	
+	pub fn next_char(&mut self) {
+		self.x += 1;
+		self.x = self.x.clamp(0, 5);
+	}
 }
 
 pub struct TileMap {
@@ -134,4 +151,35 @@ impl DerefMut for TileMap {
 	fn deref_mut(&mut self) -> &mut Self::Target {
 		&mut self.tiles
 	}
+}
+
+/// Can be used to pause the game as long as a [`PauseLock`] exists.
+/// This is done using reference counting.
+pub struct Pause {
+	lock: Arc<()>,
+}
+
+impl Pause {
+	pub fn new() -> Self {
+		Pause {
+			lock: Arc::new(()),
+		}
+	}
+	
+	pub fn lock(&self) -> PauseLock {
+		PauseLock(self.lock.clone())
+	}
+	
+	pub fn paused(&self) -> bool {
+		Arc::strong_count(&self.lock) > 1
+	}
+}
+
+#[derive(Clone)]
+pub struct PauseLock(Arc<()>);
+
+pub fn not_paused(
+	pause: Res<Pause>,
+) -> ShouldRun {
+	if pause.paused() { ShouldRun::No } else { ShouldRun::Yes }
 }

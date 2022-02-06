@@ -37,3 +37,41 @@ impl GetChar for KeyCode {
 		}
 	}
 }
+
+pub trait GetKeyCode {
+	fn get_keycode(&self) -> Option<KeyCode>;
+}
+
+impl GetKeyCode for char {
+	fn get_keycode(&self) -> Option<KeyCode> {
+		match self.to_ascii_lowercase() {
+			'a' => Some(KeyCode::A),
+			'b' => Some(KeyCode::B),
+			'c' => Some(KeyCode::C),
+			'd' => Some(KeyCode::D),
+			'e' => Some(KeyCode::E),
+			'f' => Some(KeyCode::F),
+			'g' => Some(KeyCode::G),
+			'h' => Some(KeyCode::H),
+			'i' => Some(KeyCode::I),
+			'j' => Some(KeyCode::J),
+			'k' => Some(KeyCode::K),
+			'l' => Some(KeyCode::L),
+			'm' => Some(KeyCode::M),
+			'n' => Some(KeyCode::N),
+			'o' => Some(KeyCode::O),
+			'p' => Some(KeyCode::P),
+			'q' => Some(KeyCode::Q),
+			'r' => Some(KeyCode::R),
+			's' => Some(KeyCode::S),
+			't' => Some(KeyCode::T),
+			'u' => Some(KeyCode::U),
+			'v' => Some(KeyCode::V),
+			'w' => Some(KeyCode::W),
+			'x' => Some(KeyCode::X),
+			'y' => Some(KeyCode::Y),
+			'z' => Some(KeyCode::Z),
+			_ => None,
+		}
+	}
+}

@@ -5,26 +5,39 @@ mod events;
 mod components;
 
 use bevy::prelude::*;
+use lazy_static::lazy_static;
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
 use components::*;
 use crate::anim::AnimPlugin;
 use crate::events::{Events, Guess, InvalidGuess, TypedLetter};
+use crate::keyboard::KeyboardPlugin;
 use crate::util::GetChar;
 
 const TILE_SIZE: f32 = 100.0;
 const TILE_MARGIN: f32 = 10.0;
 const TILE_TOTAL: f32 = TILE_SIZE + TILE_MARGIN;
 
+lazy_static! {
+	static ref L_GREY: Color = Color::rgb_u8(0x81, 0x83, 0x84);
+	static ref D_GREY: Color = Color::rgb_u8(0x3a, 0x3a, 0x3c);
+	static ref YELLOW: Color = Color::rgb_u8(0xb5, 0x9f, 0x3b);
+	static ref GREEN:  Color = Color::rgb_u8(0x53, 0x8d, 0x4e);
+}
+
 const TEXT_SIZE: f32 = 30.0;
 
 fn main() {
 	App::new()
-		.add_plugins(DefaultPlugins)
+		// .insert_resource(Msaa { samples: 4 })
 		.insert_resource(ClearColor(Color::rgb_u8(0x12, 0x12, 0x13)))
+		.add_plugins(DefaultPlugins)
+		
+		.insert_resource(Pause::new())
 		
 		.add_plugin(Events)
 		.add_plugin(AnimPlugin)
+		.add_plugin(KeyboardPlugin)
 		
 		.add_startup_system(setup.label(SysLabel::Setup))
 		
@@ -33,11 +46,10 @@ fn main() {
 			.label(SysLabel::Logic)
 			.after(SysLabel::Input)
 			
-			.with_system(guess_check)
 			.with_system(update_chars)
 		)
 		
-		.add_system(get_input.label(SysLabel::Input))
+		.add_system(get_input.label(SysLabel::Input).with_run_criteria(not_paused))
 		.add_system(update_tile_chars.label(SysLabel::Graphics))
 		
 		.run();
@@ -58,8 +70,11 @@ fn setup(
 	mut commands: Commands,
 	asset_server: Res<AssetServer>,
 ) {
-	// Camera
-	commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+	let mut camera = OrthographicCameraBundle::new_2d();
+	camera.transform.translation.y = -20.0;
+	commands.spawn_bundle(camera);
+	
+	commands.spawn_bundle(UiCameraBundle::default());
 	
 	commands.insert_resource(Cursor {x: 0, y: 0});
 	
@@ -115,29 +130,6 @@ fn setup(
 	commands.insert_resource(tile_map);
 }
 
-fn guess_check(
-	mut tiles_q: Query<&mut Tile>,
-	mut guess_r: EventReader<Guess>,
-	tile_map: Res<TileMap>,
-	mut cursor: ResMut<Cursor>,
-	word: Res<Word>,
-) {
-	for guess in guess_r.iter() {
-		let tile_iter = tile_map[cursor.y].iter();
-		let guess: &Guess = guess;
-		
-		let correctness = correctness(&*word, &guess.word);
-		for (e, c) in tile_iter.zip(correctness) {
-			let mut tile = tiles_q.get_mut(*e).unwrap();
-			tile.tt = c;
-		}
-		
-		cursor.next_line();
-		if cursor.y == 6 {
-			println!("Word was: {}", *word);
-		}
-	}
-}
 
 fn update_chars(
 	mut tiles_q: Query<&mut Tile>,
@@ -146,9 +138,12 @@ fn update_chars(
 ) {
 	for typed_letter in typed_letter_r.iter() {
 		let typed_letter: &TypedLetter = typed_letter;
-		let tile_e = tile_map[typed_letter.y][typed_letter.x];
-		let mut tile = tiles_q.get_mut(tile_e).unwrap();
-		tile.c = Some(typed_letter.letter);
+		
+		if typed_letter.valid {
+			let tile_e = tile_map[typed_letter.y][typed_letter.x];
+			let mut tile = tiles_q.get_mut(tile_e).unwrap();
+			tile.c = Some(typed_letter.letter);
+		}
 	}
 }
 
@@ -158,6 +153,7 @@ fn get_input(
 	tile_map: Res<TileMap>,
 	mut cursor: ResMut<Cursor>,
 	dic: Res<WordDic>,
+	word: Res<Word>,
 	
 	mut inv_guess_w: EventWriter<InvalidGuess>,
 	mut guess_w: EventWriter<Guess>,
@@ -186,11 +182,26 @@ fn get_input(
 				
 				// Check Dictionary
 				if dic.binary_search(&guess).is_ok() {
-					// Guess is a valid word; send event.
+					// Check Correctness
+					let tile_iter = tile_map[cursor.y].iter();
+					
+					let correctness = correctness(&*word, &*guess);
+					for (e, c) in tile_iter.zip(correctness) {
+						let mut tile = tiles_q.get_mut(*e).unwrap();
+						tile.tt = c;
+					}
+					
+					// send event.
 					guess_w.send(Guess {
 						word: guess,
 						row: cursor.y,
+						correctness,
 					});
+					
+					cursor.next_line();
+					if cursor.y == 6 {
+						println!("Word was: {}", *word);
+					}
 					
 					continue;
 				}
@@ -205,17 +216,18 @@ fn get_input(
 		
 		// if the key is a character
 		if let Some(c) = k.get_char() {
-			if cursor.x < 5 {
-				// Cursor inbounds; send event.
-				typed_letter_w.send(TypedLetter {
-					x: cursor.x,
-					y: cursor.y,
-					letter: c,
-				});
-				// Move the cursor
-				cursor.x += 1;
-				cursor.x = cursor.x.clamp(0, 5);
+			let valid = cursor.x < 5;
+			// send event
+			typed_letter_w.send(TypedLetter {
+				x: cursor.x,
+				y: cursor.y,
+				valid,
+				letter: c,
+			});
+			if valid {
+				cursor.next_char();
 			}
+			
 		}
 	}
 }
@@ -297,6 +309,7 @@ fn get_tile_pos(x: i32, y: i32) -> Vec3 {
 	)
 }
 
+// TODO: use correct logic
 fn correctness(correct: &str, guess: &str) -> [TileType; 5] {
 	assert_eq!(correct.len(), 5);
 	assert_eq!(guess.len(), 5);

@@ -1,8 +1,10 @@
 use std::f32::consts::PI;
 use std::time::Duration;
 use bevy::prelude::*;
-use crate::{App, get_tile_pos, Guess, InvalidGuess, SysLabel, TypedLetter};
+use crate::{App, get_tile_pos, Guess, InvalidGuess, Pause, PauseLock, SysLabel, TypedLetter};
 use crate::components::{Tile, TileAssets, TileMap};
+use crate::events::EndFlipAnim;
+use crate::keyboard::Key;
 
 const JUMP_ANIM_TIME: Duration = Duration::from_millis(100);
 const FLIP_ANIM_TIME: Duration = Duration::from_millis(300);
@@ -15,6 +17,9 @@ impl Plugin for AnimPlugin {
 		app.add_system_set(SystemSet::new()
 			.label(SysLabel::Anim)
 			.after(SysLabel::Logic)
+			
+			.with_system(color_keyboard)
+			.with_system(set_keyboard_color)
 			
 			.with_system(start_shake)
 			.with_system(start_jump)
@@ -49,7 +54,9 @@ fn start_jump(
 	for typed_letter in typed_letter_r.iter() {
 		let typed_letter: &TypedLetter = typed_letter;
 		
-		commands.entity(tile_map[typed_letter.y][typed_letter.x]).insert(JumpAnim::new());
+		if typed_letter.valid {
+			commands.entity(tile_map[typed_letter.y][typed_letter.x]).insert(JumpAnim::new());
+		}
 	}
 }
 
@@ -57,10 +64,11 @@ fn start_flip(
 	mut commands: Commands,
 	mut guess_r: EventReader<Guess>,
 	tile_map: Res<TileMap>,
+	pause: Res<Pause>
 ) {
 	for guess in guess_r.iter() {
 		let guess: &Guess = guess;
-		commands.entity(tile_map[guess.row][0]).insert(FlipAnim::new());
+		commands.entity(tile_map[guess.row][0]).insert(FlipAnim::new(pause.lock()));
 	}
 }
 
@@ -119,6 +127,7 @@ fn flip_anim(
 	time: Res<Time>,
 	tile_assets: Res<TileAssets>,
 	tile_map: Res<TileMap>,
+	mut end_flip_anim_w: EventWriter<EndFlipAnim>,
 ) {
 	for (entity, transform, tile, texture, anim) in tiles.iter_mut() {
 		let entity: Entity = entity;
@@ -134,7 +143,9 @@ fn flip_anim(
 			let x = tile.x as usize + 1;
 			let y = tile.y as usize;
 			if x < tile_map[0].len() {
-				commands.entity(tile_map[y][x]).insert(FlipAnim::new());
+				commands.entity(tile_map[y][x]).insert(FlipAnim::new(anim.pause_lock.clone()));
+			} else {
+				end_flip_anim_w.send(EndFlipAnim);
 			}
 			
 			continue;
@@ -146,6 +157,36 @@ fn flip_anim(
 		
 		let scale = (anim.scale()-0.5).abs() * 2.0;
 		transform.scale.y = scale;
+	}
+}
+
+fn color_keyboard(
+	mut keys_q: Query<(&mut UiColor, &Key)>,
+	mut end_flip_anim_r: EventReader<EndFlipAnim>,
+) {
+	for _ in end_flip_anim_r.iter() {
+		for (color, key) in keys_q.iter_mut() {
+			let mut color: Mut<UiColor> = color;
+			let key: &Key = key;
+			
+			color.0 = key.tt.color()
+		}
+	}
+}
+
+// TODO: should not replace a green.
+fn set_keyboard_color(
+	mut keys_q: Query<&mut Key>,
+	mut guess_r: EventReader<Guess>
+) {
+	for guess in guess_r.iter() {
+		let guess: &Guess = guess;
+		
+		for mut key in keys_q.iter_mut() {
+			if let Some(idx) = guess.word.chars().position(|c| c == key.key.to_ascii_lowercase()) {
+				key.tt = guess.correctness[idx];
+			}
+		}
 	}
 }
 
@@ -212,15 +253,18 @@ pub struct FlipAnim {
 	should_change: bool,
 	/// Weather this has changed.
 	changed: bool,
+	/// The flip animation should pause the game.
+	pause_lock: PauseLock,
 }
 
 impl FlipAnim {
 	/// Constructs a new [`FlipAnim`]
-	pub fn new() -> Self {
+	pub fn new(pause_lock: PauseLock) -> Self {
 		Self {
 			d: Duration::ZERO,
 			should_change: false,
-			changed: false
+			changed: false,
+			pause_lock,
 		}
 	}
 	

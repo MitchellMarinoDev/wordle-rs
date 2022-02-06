@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use crate::TileType;
 
 pub struct Events;
 
@@ -8,6 +9,7 @@ impl Plugin for Events {
 			.add_event::<Guess>()
 			.add_event::<InvalidGuess>()
 			.add_event::<TypedLetter>()
+			.add_event::<EndFlipAnim>()
 		;
 	}
 }
@@ -15,6 +17,7 @@ impl Plugin for Events {
 /// An event that is fired when the player makes a valid guess.
 pub struct Guess {
 	pub word: String,
+	pub correctness: [TileType; 5],
 	pub row: usize,
 }
 
@@ -29,6 +32,10 @@ pub struct TypedLetter {
 	pub x: usize,
 	/// The y position of the typed letter
 	pub y: usize,
+	/// If the letter was put into the
+	pub valid: bool,
 	/// The lowercase letter that was just typed
 	pub letter: char,
 }
+
+pub struct EndFlipAnim;
