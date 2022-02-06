@@ -311,7 +311,7 @@ fn correctness(correct: &str, guess: &str) -> [TileType; 5] {
 	assert_eq!(correct.len(), 5);
 	assert_eq!(guess.len(), 5);
 	
-	let mut guess_chars: Vec<_> = guess.chars().collect();
+	let guess_chars: Vec<_> = guess.chars().collect();
 	let mut correct_chars: Vec<_> = correct.chars().collect();
 	
 	let mut correctness = [TileType::Wrong; 5];

@@ -185,8 +185,12 @@ fn set_keyboard_color(
 		let guess: &Guess = guess;
 		
 		for mut key in keys_q.iter_mut() {
+			// If the guess had this key's letter.
 			if let Some(idx) = guess.word.chars().position(|c| c == key.key.to_ascii_lowercase()) {
-				key.tt = guess.correctness[idx];
+				// If the guess has better info, update it.
+				if key.tt > guess.correctness[idx] {
+					key.tt = guess.correctness[idx];
+				}
 			}
 		}
 	}
@@ -225,6 +229,7 @@ pub struct JumpAnim {
 	/// Elapsed duration.
 	d: Duration,
 }
+
 
 impl JumpAnim {
 	/// Constructs a new [`JumpAnim`]

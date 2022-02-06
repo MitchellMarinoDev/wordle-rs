@@ -39,11 +39,12 @@ impl DerefMut for WordDic {
 #[derive(Copy, Clone)]
 #[derive(Debug)]
 #[derive(Eq, PartialEq)]
+#[derive(Ord, PartialOrd)]
 pub enum TileType {
-	Default,
 	Correct,
 	Close,
 	Wrong,
+	Default,
 }
 
 impl TileType {
