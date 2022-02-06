@@ -2,18 +2,18 @@ mod util;
 mod anim;
 mod keyboard;
 mod events;
+mod components;
 
-use std::fmt::Formatter;
-use std::ops::{Deref, DerefMut};
 use bevy::prelude::*;
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
+use components::*;
 use crate::anim::AnimPlugin;
 use crate::events::{Events, Guess, InvalidGuess, TypedLetter};
 use crate::util::GetChar;
 
-const TILE_SIZE: f32    = 100.0;
-const TILE_MARGIN: f32  = 10.0;
+const TILE_SIZE: f32 = 100.0;
+const TILE_MARGIN: f32 = 10.0;
 const TILE_TOTAL: f32 = TILE_SIZE + TILE_MARGIN;
 
 const TEXT_SIZE: f32 = 30.0;
@@ -40,118 +40,9 @@ fn main() {
 // TODO: color tiles with bevy, not have multiple images
 
 // TODO: MILESTONES
+//      game win events/anim
 //      Confetti
 //      Show Word on fail
-//      Correct anim
-
-// TODO: move resources to separate file
-#[derive(Clone)]
-struct WordDic(Vec<String>);
-
-impl Deref for WordDic {
-	type Target = Vec<String>;
-	
-	fn deref(&self) -> &Self::Target {
-		&self.0
-	}
-}
-
-impl DerefMut for WordDic {
-	fn deref_mut(&mut self) -> &mut Self::Target {
-		&mut self.0
-	}
-}
-
-#[derive(Copy, Clone)]
-#[derive(Debug)]
-enum TileType {
-	Default,
-	Correct,
-	Close,
-	Wrong,
-}
-
-#[derive(Component)]
-struct Tile {
-	tt: TileType,
-	c: Option<char>,
-	x: u32,
-	y: u32,
-}
-
-#[derive(Clone)]
-struct TileAssets {
-	default: Handle<Image>,
-	grey: Handle<Image>,
-	yellow: Handle<Image>,
-	green: Handle<Image>,
-}
-
-impl TileAssets {
-	fn of_correctness(&self, correctness: TileType) -> Handle<Image> {
-		match correctness {
-			TileType::Correct => self.green.clone(),
-			TileType::Close => self.yellow.clone(),
-			TileType::Default => self.default.clone(),
-			TileType::Wrong => self.grey.clone(),
-		}
-	}
-}
-
-#[derive(Clone)]
-#[derive(PartialOrd, Ord, PartialEq, Eq)]
-#[derive(Hash, Debug, Default)]
-struct Word(String);
-
-impl std::fmt::Display for Word {
-	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		std::fmt::Display::fmt(&self.0, f)
-	}
-}
-
-impl Deref for Word {
-	type Target = String;
-	
-	fn deref(&self) -> &Self::Target {
-		&self.0
-	}
-}
-
-impl DerefMut for Word {
-	fn deref_mut(&mut self) -> &mut Self::Target {
-		&mut self.0
-	}
-}
-
-pub struct Cursor {
-	pub x: usize,
-	pub y: usize,
-}
-
-impl Cursor {
-	fn next_line(&mut self) {
-		self.y += 1;
-		self.x = 0;
-	}
-}
-
-struct TileMap {
-	tiles: [[Entity; 5]; 6],
-}
-
-impl Deref for TileMap {
-	type Target = [[Entity; 5]; 6];
-	
-	fn deref(&self) -> &Self::Target {
-		&self.tiles
-	}
-}
-
-impl DerefMut for TileMap {
-	fn deref_mut(&mut self) -> &mut Self::Target {
-		&mut self.tiles
-	}
-}
 
 fn setup(
 	mut commands: Commands,
@@ -202,7 +93,7 @@ fn setup(
 		});
 	
 	// create a tile map of all "null"s
-	let mut tile_map = TileMap {tiles: [[Entity::from_bits(0); 5]; 6]};
+	let mut tile_map = TileMap::null();
 	
 	for y in 0..6 {
 		for x in 0..5 {

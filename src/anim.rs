@@ -1,7 +1,8 @@
 use std::f32::consts::PI;
 use std::time::Duration;
 use bevy::prelude::*;
-use crate::{App, get_tile_pos, Guess, InvalidGuess, Tile, TileAssets, TileMap, TypedLetter};
+use crate::{App, get_tile_pos, Guess, InvalidGuess, TypedLetter};
+use crate::components::{Tile, TileAssets, TileMap};
 
 const JUMP_ANIM_TIME: Duration = Duration::from_millis(100);
 const FLIP_ANIM_TIME: Duration = Duration::from_millis(300);
@@ -32,7 +33,7 @@ fn start_shake(
 	for inv_guess in inv_guess_r.iter() {
 		let inv_guess: &InvalidGuess = inv_guess;
 		
-		for entity in tile_map.tiles[inv_guess.row].iter() {
+		for entity in tile_map[inv_guess.row].iter() {
 			commands.entity(*entity).insert(ShakeAnim::new());
 		}
 	}
@@ -46,7 +47,7 @@ fn start_jump(
 	for typed_letter in typed_letter_r.iter() {
 		let typed_letter: &TypedLetter = typed_letter;
 		
-		commands.entity(tile_map.tiles[typed_letter.y][typed_letter.x]).insert(JumpAnim::new());
+		commands.entity(tile_map[typed_letter.y][typed_letter.x]).insert(JumpAnim::new());
 	}
 }
 
@@ -57,7 +58,7 @@ fn start_flip(
 ) {
 	for guess in guess_r.iter() {
 		let guess: &Guess = guess;
-		commands.entity(tile_map.tiles[guess.row][0]).insert(FlipAnim::new());
+		commands.entity(tile_map[guess.row][0]).insert(FlipAnim::new());
 	}
 }
 
@@ -130,8 +131,8 @@ fn flip_anim(
 			// Give the next tile the flip anim
 			let x = tile.x as usize + 1;
 			let y = tile.y as usize;
-			if x < tile_map.tiles[0].len() {
-				commands.entity(tile_map.tiles[y][x]).insert(FlipAnim::new());
+			if x < tile_map[0].len() {
+				commands.entity(tile_map[y][x]).insert(FlipAnim::new());
 			}
 			
 			continue;
