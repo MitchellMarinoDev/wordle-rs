@@ -10,7 +10,7 @@ use rand::prelude::SliceRandom;
 use rand::thread_rng;
 use components::*;
 use crate::anim::AnimPlugin;
-use crate::events::{Events, Guess, InvalidGuess, TypedLetter};
+use crate::events::{Events, GameWin, Guess, InvalidGuess, TypedLetter};
 use crate::keyboard::KeyboardPlugin;
 use crate::TileType::Correct;
 use crate::util::GetChar;
@@ -155,6 +155,7 @@ fn get_input(
 	mut inv_guess_w: EventWriter<InvalidGuess>,
 	mut guess_w: EventWriter<Guess>,
 	mut typed_letter_w: EventWriter<TypedLetter>,
+	mut game_win_w: EventWriter<GameWin>,
 ) {
 	for k in keys.get_just_pressed() {
 		let k: &KeyCode = k;
@@ -190,14 +191,22 @@ fn get_input(
 					
 					// send event.
 					guess_w.send(Guess {
-						word: guess,
+						word: guess.clone(),
 						row: cursor.y,
 						correctness,
 					});
 					
-					cursor.next_line();
-					if cursor.y == 6 {
-						println!("Word was: {}", *word);
+					if correctness == [TileType::Correct; 5] {
+						// Game won
+						game_win_w.send(GameWin {
+							word: guess,
+						})
+					} else {
+						// Game not won
+						if cursor.y == 5 {
+							println!("Word was: {}", *word);
+						}
+						cursor.next_line();
 					}
 					
 					continue;

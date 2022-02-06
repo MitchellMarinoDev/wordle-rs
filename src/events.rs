@@ -10,6 +10,7 @@ impl Plugin for Events {
 			.add_event::<InvalidGuess>()
 			.add_event::<TypedLetter>()
 			.add_event::<EndFlipAnim>()
+			.add_event::<GameWin>()
 		;
 	}
 }
@@ -39,3 +40,7 @@ pub struct TypedLetter {
 }
 
 pub struct EndFlipAnim;
+
+pub struct GameWin {
+	pub word: String,
+}

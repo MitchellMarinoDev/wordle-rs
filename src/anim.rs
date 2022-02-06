@@ -5,6 +5,7 @@ use crate::{App, get_tile_pos, Guess, InvalidGuess, Pause, PauseLock, SysLabel, 
 use crate::components::{Tile, TileAssets, TileMap};
 use crate::events::EndFlipAnim;
 use crate::keyboard::Key;
+use crate::util::GetKeyCode;
 
 const JUMP_ANIM_TIME: Duration = Duration::from_millis(100);
 const FLIP_ANIM_TIME: Duration = Duration::from_millis(300);
@@ -20,6 +21,7 @@ impl Plugin for AnimPlugin {
 			
 			.with_system(color_keyboard)
 			.with_system(set_keyboard_color)
+			.with_system(keyboard_jump)
 			
 			.with_system(start_shake)
 			.with_system(start_jump)
@@ -101,7 +103,7 @@ fn shake_anim(
 
 fn jump_anim(
 	mut commands: Commands,
-	mut tiles: Query<(Entity, &mut Transform, &mut JumpAnim), With<Tile>>,
+	mut tiles: Query<(Entity, &mut Transform, &mut JumpAnim)>,
 	time: Res<Time>,
 ) {
 	for (entity, transform, anim) in tiles.iter_mut() {
@@ -176,7 +178,6 @@ fn color_keyboard(
 	}
 }
 
-// TODO: should not replace a green.
 fn set_keyboard_color(
 	mut keys_q: Query<&mut Key>,
 	mut guess_r: EventReader<Guess>
@@ -191,6 +192,25 @@ fn set_keyboard_color(
 				if key.tt > guess.correctness[idx] {
 					key.tt = guess.correctness[idx];
 				}
+			}
+		}
+	}
+}
+
+fn keyboard_jump(
+	mut commands: Commands,
+	keys: Res<Input<KeyCode>>,
+	keys_q: Query<(Entity, &Key)>
+) {
+	for key in keys.get_just_pressed() {
+		let key: &KeyCode = key;
+		
+		for (entity, key_c) in keys_q.iter() {
+			let entity: Entity = entity;
+			let key_c: &Key = key_c;
+			
+			if key_c.key.get_keycode().unwrap() == *key {
+				commands.entity(entity).insert(JumpAnim::new());
 			}
 		}
 	}
