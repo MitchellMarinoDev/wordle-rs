@@ -1,7 +1,7 @@
 use std::f32::consts::PI;
 use std::time::Duration;
 use bevy::prelude::*;
-use crate::{App, get_tile_pos, Guess, InvalidGuess, TypedLetter};
+use crate::{App, get_tile_pos, Guess, InvalidGuess, SysLabel, TypedLetter};
 use crate::components::{Tile, TileAssets, TileMap};
 
 const JUMP_ANIM_TIME: Duration = Duration::from_millis(100);
@@ -12,16 +12,18 @@ pub struct AnimPlugin;
 
 impl Plugin for AnimPlugin {
 	fn build(&self, app: &mut App) {
-		// TODO: label these systems;
-		app
-			.add_system(start_shake)
-			.add_system(start_jump)
-			.add_system(start_flip)
+		app.add_system_set(SystemSet::new()
+			.label(SysLabel::Anim)
+			.after(SysLabel::Logic)
 			
-			.add_system(shake_anim)
-			.add_system(jump_anim)
-			.add_system(flip_anim)
-		;
+			.with_system(start_shake)
+			.with_system(start_jump)
+			.with_system(start_flip)
+			
+			.with_system(shake_anim)
+			.with_system(jump_anim)
+			.with_system(flip_anim)
+		);
 	}
 }
 

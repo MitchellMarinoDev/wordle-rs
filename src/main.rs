@@ -26,14 +26,24 @@ fn main() {
 		.add_plugin(Events)
 		.add_plugin(AnimPlugin)
 		
-		.add_startup_system(setup)
-		.add_system(guess_check)
-		.add_system(update_chars)
-		.add_system(get_input)
-		.add_system(update_tile_chars)
+		.add_startup_system(setup.label(SysLabel::Setup))
+		
+		// LOGIC SET
+		.add_system_set(SystemSet::new()
+			.label(SysLabel::Logic)
+			.after(SysLabel::Input)
+			
+			.with_system(guess_check)
+			.with_system(update_chars)
+		)
+		
+		.add_system(get_input.label(SysLabel::Input))
+		.add_system(update_tile_chars.label(SysLabel::Graphics))
 		
 		.run();
 }
+
+// TODO: Doc and test
 
 // TODO: change camera to scale
 
@@ -175,7 +185,7 @@ fn get_input(
 					.to_lowercase();
 				
 				// Check Dictionary
-				if dic.contains(&guess) {
+				if dic.binary_search(&guess).is_ok() {
 					// Guess is a valid word; send event.
 					guess_w.send(Guess {
 						word: guess,

@@ -1,9 +1,22 @@
 use std::ops::{Deref, DerefMut};
 use std::fmt::Formatter;
 use bevy::prelude::Component;
+use bevy::ecs::schedule::SystemLabel;
 use crate::{Entity, Handle, Image};
 
 ///! Contains components and resources.
+#[derive(Copy, Clone)]
+#[derive(Eq, PartialEq)]
+#[derive(Debug)]
+#[derive(Hash)]
+#[derive(SystemLabel)]
+pub enum SysLabel {
+	Anim,
+	Input,
+	Logic,
+	Graphics,
+	Setup,
+}
 
 #[derive(Clone)]
 pub struct WordDic(pub Vec<String>);
