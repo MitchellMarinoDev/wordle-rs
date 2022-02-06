@@ -32,5 +32,3 @@ pub struct TypedLetter {
 	/// The lowercase letter that was just typed
 	pub letter: char,
 }
-
-// TODO: letter backspace event?
