@@ -3,7 +3,7 @@ use std::time::Duration;
 use bevy::prelude::*;
 use rand::{Rng, thread_rng};
 use statrs::distribution::{ContinuousCDF, Normal};
-use crate::{App, Confetti, ConfettiSpawner, GameWin, get_tile_pos, Guess, InvalidGuess, Pause, PauseLock, SysLabel, TileType, TypedLetter};
+use crate::{App, Confetti, ConfettiSpawner, get_tile_pos, Guess, InvalidGuess, Pause, PauseLock, SysLabel, TileType, TypedLetter};
 use crate::components::{Tile, TileAssets, TileMap};
 use crate::events::EndFlipAnim;
 use crate::keyboard::Key;
@@ -15,7 +15,7 @@ const SHAKE_ANIM_TIME: Duration = Duration::from_millis(500);
 const WAVE_ANIM_TIME: Duration = Duration::from_millis(200);
 const WAVE_AMPL: f32 = 30.0;
 
-const CONFETTI_COUNT: u32 = 100;
+const CONFETTI_COUNT: u32 = 200;
 
 pub struct AnimPlugin;
 
@@ -303,7 +303,7 @@ fn confetti_gravity(
 
 fn spawn_confetti(
 	mut commands: Commands,
-	mut confetti_spawner_q: Query<(&Transform, &ConfettiSpawner)>,
+	confetti_spawner_q: Query<(&Transform, &ConfettiSpawner)>,
 	mut end_flip_anim_r: EventReader<EndFlipAnim>,
 ) {
 	for end_flip_anim in end_flip_anim_r.iter() {
@@ -322,13 +322,11 @@ fn spawn_confetti(
 				let normal_x = Normal::new(v_x as f64, (v_x.abs() / 2.0) as f64).unwrap();
 				let normal_y = Normal::new(v_y as f64, (v_y.abs() / 2.0) as f64).unwrap();
 				
-				let rand = 0.3..1.7;
-				
 				for _i in 0..CONFETTI_COUNT {
 					let velocity = Vec3::new(
 						normal_x.inverse_cdf(rng.gen_range(0.0..1.0)) as f32,
 						normal_y.inverse_cdf(rng.gen_range(0.0..1.0)) as f32,
-						0.0,
+						1.0,
 					);
 					
 					let rot = Quat::from_rotation_z(rng.gen_range(0.0..0.5));
