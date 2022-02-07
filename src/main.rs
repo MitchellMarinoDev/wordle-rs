@@ -62,7 +62,6 @@ fn main() {
 
 // TODO: MILESTONES
 //      game win events/anim
-//      Confetti
 //      Show Word on fail
 
 fn setup(
@@ -78,7 +77,7 @@ fn setup(
 	commands.insert_resource(Cursor {x: 0, y: 0});
 	
 	// Dictionary
-	let dic_raw = std::fs::read_to_string("assets/dictionary.txt")
+	let dic_raw = std::fs::read_to_string("assets/dictionary_reduced.txt")
 		.expect("Check Dictionary File");
 	let dic: Vec<String> = dic_raw.trim().lines().map(|w| w.to_owned()).collect();
 	println!("word count: {}", dic.len());
