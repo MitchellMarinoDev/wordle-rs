@@ -85,7 +85,7 @@ fn setup(
 	
 	let mut rng = thread_rng();
 	let correct_word = dic.choose(&mut rng).unwrap().to_owned();
-	println!("Word is: {}", correct_word);
+	// println!("Word is: {}", correct_word);
 	commands.insert_resource(Word(correct_word));
 	commands.insert_resource(WordDic(dic));
 	

@@ -2,6 +2,7 @@ use std::f32::consts::PI;
 use std::time::Duration;
 use bevy::prelude::*;
 use rand::{Rng, thread_rng};
+use statrs::distribution::{ContinuousCDF, Normal};
 use crate::{App, Confetti, ConfettiSpawner, GameWin, get_tile_pos, Guess, InvalidGuess, Pause, PauseLock, SysLabel, TileType, TypedLetter};
 use crate::components::{Tile, TileAssets, TileMap};
 use crate::events::EndFlipAnim;
@@ -97,7 +98,9 @@ fn start_wave(
 	for end_flip_anim in end_flip_anim_r.iter() {
 		let end_flip_anim: &EndFlipAnim = end_flip_anim;
 		
-		commands.entity(tile_map[end_flip_anim.row][0]).insert(WaveAnim::new());
+		if end_flip_anim.correctness == [TileType::Correct; 5] {
+			commands.entity(tile_map[end_flip_anim.row][0]).insert(WaveAnim::new());
+		}
 	}
 }
 
@@ -315,12 +318,16 @@ fn spawn_confetti(
 				
 				let v_x = confetti_spawner.dir.x;
 				let v_y = confetti_spawner.dir.y;
+				
+				let normal_x = Normal::new(v_x as f64, (v_x.abs() / 2.0) as f64).unwrap();
+				let normal_y = Normal::new(v_y as f64, (v_y.abs() / 2.0) as f64).unwrap();
+				
 				let rand = 0.3..1.7;
 				
 				for _i in 0..CONFETTI_COUNT {
 					let velocity = Vec3::new(
-						v_x * rng.gen_range::<f32, _>(rand.clone()),
-						v_y * rng.gen_range::<f32, _>(rand.clone()),
+						normal_x.inverse_cdf(rng.gen_range(0.0..1.0)) as f32,
+						normal_y.inverse_cdf(rng.gen_range(0.0..1.0)) as f32,
 						0.0,
 					);
 					
