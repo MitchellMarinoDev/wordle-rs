@@ -30,7 +30,6 @@ const TEXT_SIZE: f32 = 30.0;
 
 fn main() {
 	App::new()
-		// .insert_resource(Msaa { samples: 4 })
 		.insert_resource(ClearColor(Color::rgb_u8(0x12, 0x12, 0x13)))
 		.add_plugins(DefaultPlugins)
 		
@@ -56,13 +55,12 @@ fn main() {
 		.run();
 }
 
-// TODO: Doc and test
-
 // TODO: change camera to scale
 
 // TODO: MILESTONES
 //      game win events/anim
 //      Show Word on fail
+// 		restart button
 
 fn setup(
 	mut commands: Commands,
@@ -316,7 +314,6 @@ fn get_tile_pos(x: i32, y: i32) -> Vec3 {
 	)
 }
 
-// TODO: use correct logic
 fn correctness(correct: &str, guess: &str) -> [TileType; 5] {
 	assert_eq!(correct.len(), 5);
 	assert_eq!(guess.len(), 5);
