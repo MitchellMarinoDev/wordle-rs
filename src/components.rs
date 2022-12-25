@@ -1,7 +1,7 @@
 use std::ops::{Deref, DerefMut};
 use std::fmt::Formatter;
 use std::sync::Arc;
-use bevy::prelude::{Component, Res};
+use bevy::prelude::*;
 use bevy::ecs::schedule::{ShouldRun, SystemLabel};
 use crate::{Color, D_GREY, Entity, GREEN, Handle, Image, L_GREY, Quat, Vec3, YELLOW};
 
@@ -19,7 +19,7 @@ pub enum SysLabel {
 	Setup,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Resource)]
 pub struct WordDic(pub Vec<String>);
 
 impl Deref for WordDic {
@@ -66,7 +66,7 @@ pub struct Tile {
 	pub y: u32,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Resource)]
 pub struct TileAssets {
 	pub default: Handle<Image>,
 	pub colored: Handle<Image>,
@@ -75,6 +75,7 @@ pub struct TileAssets {
 #[derive(Clone)]
 #[derive(PartialOrd, Ord, PartialEq, Eq)]
 #[derive(Hash, Debug, Default)]
+#[derive(Resource)]
 pub struct Word(pub String);
 
 impl std::fmt::Display for Word {
@@ -97,6 +98,7 @@ impl DerefMut for Word {
 	}
 }
 
+#[derive(Resource)]
 pub struct Cursor {
 	pub x: usize,
 	pub y: usize,
@@ -114,6 +116,7 @@ impl Cursor {
 	}
 }
 
+#[derive(Resource)]
 pub struct TileMap {
 	tiles: [[Entity; 5]; 6],
 }
@@ -155,6 +158,7 @@ pub struct Confetti {
 
 /// Can be used to pause the game as long as a [`PauseLock`] exists.
 /// This is done using reference counting.
+#[derive(Resource)]
 pub struct Pause {
 	lock: Arc<()>,
 }

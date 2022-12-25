@@ -1,1 +1,6 @@
 /target
+/.idea
+/Cargo.lock
+/target-native
+/target-wasm
+

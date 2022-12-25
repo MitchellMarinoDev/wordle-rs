@@ -37,7 +37,9 @@ fn simulate_keyboard(
 	for (interaction, key) in key_q.iter_mut() {
 		let interaction: Interaction = *interaction;
 		let mut key: Mut<Key> = key;
-		
+
+		// Change detection is conservative. There is no guarantee that the value actually changed.
+		// Therefore, we should keep track of the old value and make sure it really changed.
 		if interaction == Clicked && key.old != Clicked {
 			keys.press(key.key.get_keycode().unwrap())
 		}
@@ -56,27 +58,29 @@ fn setup_keyboard(
 	let texture = asset_server.load("tiles/key_tile.png");
 	let font = asset_server.load("fonts/Swansea.ttf");
 	
-	let keyboard = commands.spawn()
-		.insert_bundle(NodeBundle {
-			color: Color::NONE.into(),
+	let keyboard = commands
+		.spawn(NodeBundle {
+			background_color: Color::NONE.into(),
 			style: Style {
-				size: Size::new(Val::Percent(100.0), Val::Px(265.0)),
+				align_self: AlignSelf::FlexEnd,
+				size: Size::new(Val::Percent(100.0), Val::Percent(24.0)),
 				justify_content: JustifyContent::Center,
-				flex_direction: FlexDirection::ColumnReverse,
+				flex_direction: FlexDirection::Column,
 				..Default::default()
 			},
 			..Default::default()
-		}).id();
+		})
+		.insert(Name::new("Keyboard"))
+		.id();
 	
-	
-	spawn_row("QWERTYUIOP".chars(), texture.clone(), font.clone(), &mut commands, keyboard);
-	spawn_row("ASDFGHJKL".chars(),  texture.clone(), font.clone(), &mut commands, keyboard);
-	spawn_row("ZXCVBNM".chars(),    texture.clone(), font.clone(), &mut commands, keyboard);
+	spawn_row("QWERTYUIOP", texture.clone(), font.clone(), &mut commands, keyboard);
+	spawn_row("ASDFGHJKL",  texture.clone(), font.clone(), &mut commands, keyboard);
+	spawn_row("ZXCVBNM",    texture.clone(), font.clone(), &mut commands, keyboard);
 	// TODO: add enter and backspace
 }
 
 fn spawn_row(
-	letters: impl Iterator<Item=char> + Clone,
+	letters: &str,
 	texture: Handle<Image>,
 	font: Handle<Font>,
 	commands: &mut Commands,
@@ -85,62 +89,61 @@ fn spawn_row(
 	// Keyboard
 	commands.entity(keyboard)
 		.with_children(|keyboard_cb| {
-			keyboard_cb.spawn()
-				.insert_bundle(NodeBundle {
-					color: Color::NONE.into(),
+			keyboard_cb
+				.spawn(NodeBundle {
+					background_color: Color::NONE.into(),
 					style: Style {
-						padding: Rect::all(Val::Px(2.0)),
+						padding: UiRect::all(Val::Px(2.0)),
 						justify_content: JustifyContent::Center,
 						flex_direction: FlexDirection::Row,
 						..Default::default()
 					},
 					..Default::default()
 				})
+				.insert(Name::new(format!("{} row", letters)))
 				// Spawn each key
 				.with_children(|row_cb| {
-					for letter in letters {
-						row_cb.spawn_bundle(ButtonBundle {
+					for letter in letters.chars() {
+						row_cb.spawn(ButtonBundle {
 							image: UiImage(texture.clone()),
 							// node: Node{size: Vec2::new(KEY_SIZE, KEY_SIZE)},
-							color: UiColor(*L_GREY),
+							background_color: BackgroundColor(*L_GREY),
 							style: Style {
-								margin: Rect::all(Val::Px(5.0)),
+								margin: UiRect::all(Val::Px(5.0)),
 								align_items: AlignItems::Center,
 								size: Size::new(Val::Px(KEY_SIZE), Val::Px(KEY_SIZE)),
+								// size: Size::new(Val::Auto, Val::Auto),
+								flex_grow: 0.0,
+								flex_shrink: 1.0,
 								..Default::default()
 							},
 							..Default::default()
 						})
 						.insert(Key::new(letter))
+						.insert(Name::new(format!("{} key", letter)))
 						.with_children(|key_cb| {
 							// Text component
-							key_cb.spawn_bundle(TextBundle {
+							key_cb.spawn(TextBundle {
 								style: Style {
-									margin: Rect {
-										left: Val::Auto,
-										right: Val::Auto,
-										top: Val::Auto,
-										bottom: Val::Auto,
-									},
-									position: Rect {
+									margin: UiRect::all(Val::Auto),
+									position: UiRect {
 										bottom: Val::Px(0.27*KEY_TEXT_SIZE),
 										..Default::default()
 									},
 									// padding: Rect::all(Val::Px(32.0)),
 									..Default::default()
 								},
-								text: Text::with_section(
+								text: Text::from_section(
 									letter,
 									TextStyle {
 										font: font.clone(),
 										font_size: KEY_TEXT_SIZE,
 										color: Color::WHITE,
-									},
-									TextAlignment {
-										horizontal: HorizontalAlign::Center,
-										vertical: VerticalAlign::Center,
 									}
-								),
+								).with_alignment(TextAlignment {
+									horizontal: HorizontalAlign::Center,
+									vertical: VerticalAlign::Center,
+								}),
 								
 								..Default::default()
 							});

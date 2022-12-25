@@ -5,6 +5,9 @@ mod events;
 mod components;
 
 use bevy::prelude::*;
+use bevy::render::camera::ScalingMode;
+use bevy::window::WindowResized;
+use bevy_editor_pls::EditorPlugin;
 use lazy_static::lazy_static;
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
@@ -29,16 +32,24 @@ lazy_static! {
 const TEXT_SIZE: f32 = 30.0;
 
 fn main() {
-	App::new()
+
+	let mut app = App::new();
+
+	app
 		.insert_resource(ClearColor(Color::rgb_u8(0x12, 0x12, 0x13)))
-		.add_plugins(DefaultPlugins)
-		
+		.add_plugins(DefaultPlugins);
+
+	#[cfg(target_family = "wasm")]
+	app.add_plugin(bevy_web_fullscreen::FullViewportPlugin);
+
+	app
 		.insert_resource(Pause::new())
-		
+		.insert_resource(UiScale { scale: 1.0 })
 		.add_plugin(Events)
 		.add_plugin(AnimPlugin)
 		.add_plugin(KeyboardPlugin)
-		
+		// .add_plugin(EditorPlugin)
+
 		.add_startup_system(setup.label(SysLabel::Setup))
 		
 		// LOGIC SET
@@ -49,9 +60,10 @@ fn main() {
 			.with_system(update_chars)
 		)
 		
+		.add_system(update_ui_scale)
 		.add_system(get_input.label(SysLabel::Input).with_run_criteria(not_paused))
 		.add_system(update_tile_chars.label(SysLabel::Graphics))
-		
+
 		.run();
 }
 
@@ -62,21 +74,29 @@ fn main() {
 //      Show Word on fail
 // 		restart button
 
+fn update_ui_scale(
+	mut e_window_resize: EventReader<WindowResized>,
+	mut ui_scale: ResMut<UiScale>,
+) {
+	for resize in e_window_resize.iter() {
+		ui_scale.scale = (resize.height / 1080.0) as f64;
+	}
+}
+
 fn setup(
 	mut commands: Commands,
 	asset_server: Res<AssetServer>,
 ) {
-	let mut camera = OrthographicCameraBundle::new_2d();
-	camera.transform.translation.y = -20.0;
-	commands.spawn_bundle(camera);
-	
-	commands.spawn_bundle(UiCameraBundle::default());
+	let mut camera = Camera2dBundle::default();
+	camera.projection.scaling_mode = ScalingMode::FixedVertical(1080.0);
+	// camera.projection.scaling_mode = ScalingMode::Auto { min_width: 1920.0, min_height: 1080.0 };
+	// camera.transform.translation.y = -20.0;
+	commands.spawn(camera);
 	
 	commands.insert_resource(Cursor {x: 0, y: 0});
 	
 	// Dictionary
-	let dic_raw = std::fs::read_to_string("assets/dictionary_reduced.txt")
-		.expect("Check Dictionary File");
+	let dic_raw = include_str!("../assets/dictionary_reduced.txt");
 	let dic: Vec<String> = dic_raw.trim().lines().map(|w| w.to_owned()).collect();
 	println!("word count: {}", dic.len());
 	
@@ -105,9 +125,9 @@ fn setup(
 		horizontal: HorizontalAlign::Center,
 	};
 	
-	commands.spawn()
-		.insert_bundle(Text2dBundle {
-			text: Text::with_section("WORDLE", title_style, alignment),
+	commands
+		.spawn(Text2dBundle {
+			text: Text::from_section("WORDLE", title_style).with_alignment(alignment),
 			transform: Transform::from_translation(Vec3::new(0.0, TILE_TOTAL * 4.0 + TILE_MARGIN, 0.0)),
 			..Default::default()
 		});
@@ -156,8 +176,6 @@ fn get_input(
 	mut game_win_w: EventWriter<GameWin>,
 ) {
 	for k in keys.get_just_pressed() {
-		let k: &KeyCode = k;
-		
 		if *k == KeyCode::Back {
 			if cursor.x > 0 {
 				cursor.x -= 1;
@@ -279,16 +297,16 @@ fn spawn_tile(
 	
 	let pos = get_tile_pos(x, y);
 	
-	commands.spawn()
+	commands.spawn_empty()
 		.with_children(|c| {
-			c.spawn()
-				.insert_bundle(Text2dBundle {
-					text: Text::with_section("", style, alignment),
+			c
+				.spawn(Text2dBundle {
+					text: Text::from_section("", style).with_alignment(alignment),
 					transform: Transform::from_translation(Vec3::new(0.0, TEXT_SIZE * 0.27, 1.0)),
 					..Default::default()
 				});
 		})
-		.insert_bundle(SpriteBundle {
+		.insert(SpriteBundle {
 			texture,
 			sprite: Sprite {
 				// color,

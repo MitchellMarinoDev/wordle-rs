@@ -229,12 +229,12 @@ fn wave_anim(
 }
 
 fn color_keyboard(
-	mut keys_q: Query<(&mut UiColor, &Key)>,
+	mut keys_q: Query<(&mut BackgroundColor, &Key)>,
 	mut end_flip_anim_r: EventReader<EndFlipAnim>,
 ) {
 	for _ in end_flip_anim_r.iter() {
 		for (color, key) in keys_q.iter_mut() {
-			let mut color: Mut<UiColor> = color;
+			let mut color: Mut<BackgroundColor> = color;
 			let key: &Key = key;
 			
 			color.0 = key.tt.color()
@@ -331,8 +331,8 @@ fn spawn_confetti(
 					
 					let rot = Quat::from_rotation_z(rng.gen_range(0.0..0.5));
 					
-					commands.spawn()
-						.insert_bundle(SpriteBundle {
+					commands
+						.spawn(SpriteBundle {
 							sprite: Sprite {
 								color: Color::rgb_u8(rng.gen(), rng.gen(), rng.gen()),
 								custom_size: Some(Vec2::new(10.0, 5.0)),
@@ -356,14 +356,14 @@ fn spawn_confetti(
 fn setup_confetti_spawners(
 	mut commands: Commands,
 ) {
-	commands.spawn()
-		.insert(ConfettiSpawner {
+	commands
+		.spawn(ConfettiSpawner {
 			dir: Vec3::new(-5.0, 7.0, 0.0),
 		})
 		.insert(Transform::from_translation(Vec3::new(550.0, -200.0, 0.0)));
 	
-	commands.spawn()
-		.insert(ConfettiSpawner {
+	commands
+		.spawn(ConfettiSpawner {
 			dir: Vec3::new(5.0, 7.0, 0.0),
 		})
 		.insert(Transform::from_translation(Vec3::new(-550.0, -200.0, 0.0)));

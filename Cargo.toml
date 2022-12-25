@@ -8,7 +8,10 @@ edition = "2021"
 opt-level = 3
 
 [dependencies]
-bevy = { version = "0.6.0", features = ["dynamic"] }
+#bevy = { version = "0.6.0", features = ["dynamic"] }
+bevy = { version = "0.9" }
+bevy_editor_pls = "0.2.0"
+bevy_web_fullscreen = { git = "https://github.com/MitchellMarinoDev/bevy_web_fullscreen" }
 rand = "0.8.4"
 lazy_static = "1.4.0"
 statrs = "0.15.0"
